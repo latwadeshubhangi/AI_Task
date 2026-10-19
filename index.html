@@ -1,0 +1,368 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskPilot AI - Task Planning Agent</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f4f6fb;color:#172033}
+header{background:#172554;color:white;padding:22px 7%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:25px}
+header p{font-size:13px;color:#cbd5e1;margin-top:6px}
+.tag{background:#2563eb;padding:8px 13px;border-radius:20px;font-size:12px}
+.container{max-width:1050px;margin:30px auto;padding:0 18px}
+.card{background:white;border-radius:15px;padding:24px;margin-bottom:22px;box-shadow:0 4px 20px #1725540c}
+h2{font-size:20px;margin-bottom:16px}
+p.sub{color:#64748b;font-size:14px;line-height:1.6;margin-bottom:15px}
+textarea,input{width:100%;padding:13px;border:1px solid #dbe2ee;border-radius:9px;font:inherit;outline:none;margin-bottom:12px}
+textarea:focus,input:focus{border-color:#2563eb}
+textarea{resize:vertical;min-height:105px}
+button{border:0;border-radius:9px;padding:12px 17px;background:#2563eb;color:white;font-weight:bold;cursor:pointer}
+button:hover{background:#1d4ed8}
+button.secondary{background:#e8eefb;color:#1d4ed8}
+button.small{padding:7px 10px;font-size:12px}
+.examples{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:16px}
+.examples button{font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+.stat{background:#f8faff;border:1px solid #e3eaf7;padding:17px;border-radius:11px}
+.stat p{color:#64748b;font-size:13px;margin-bottom:9px}
+.stat strong{font-size:24px}
+.progress{height:8px;background:#e5e7eb;border-radius:8px;overflow:hidden;margin:12px 0}
+.progress div{height:100%;width:0;background:#2563eb;transition:.3s}
+.task{border:1px solid #e2e8f0;border-radius:11px;padding:16px;margin-bottom:12px}
+.task-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.task h3{font-size:15px;margin-bottom:7px}
+.task p{font-size:13px;color:#64748b;line-height:1.6;margin-bottom:10px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.priority{font-size:11px;padding:5px 9px;border-radius:20px;font-weight:bold}
+.High{background:#fee2e2;color:#b91c1c}
+.Medium{background:#fef3c7;color:#92400e}
+.Low{background:#dcfce7;color:#166534}
+.duration{font-size:12px;color:#475569}
+.task.done{opacity:.65;background:#f8fafc}
+.task.done h3{text-decoration:line-through}
+.task input[type=checkbox]{width:auto;margin:0 8px 0 0}
+.task-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.notice{font-size:13px;color:#64748b;margin-top:12px;line-height:1.6}
+.hidden{display:none}
+footer{text-align:center;color:#64748b;padding:25px;font-size:12px}
+@media(max-width:600px){.stats{grid-template-columns:1fr}.card{padding:17px}.task-top{flex-direction:column}header{padding:20px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>✦ TaskPilot AI</h1>
+    <p>AI-Powered Automated Task Planning Agent</p>
+  </div>
+  <span class="tag">● Demo Mode</span>
+</header>
+
+<main class="container">
+  <section class="card">
+    <h2>🎯 What's your goal?</h2>
+    <p class="sub">Enter a goal or problem. The planning agent will break it into actionable tasks with priorities and estimated durations.</p>
+    <div class="examples">
+      <button class="secondary" onclick="setGoal('Organize a two-day technical workshop for MCA students')">Technical Workshop</button>
+      <button class="secondary" onclick="setGoal('Prepare for a campus placement aptitude test in 30 days')">Placement Preparation</button>
+      <button class="secondary" onclick="setGoal('Develop a student management web application in 14 days')">Web Application</button>
+    </div>
+    <textarea id="goal" placeholder="Example: Organize a two-day technical workshop for MCA students..."></textarea>
+    <button onclick="generatePlan()">✦ Generate Plan</button>
+    <p class="notice">System prompt: You are an AI task-planning agent. Understand the user's goal, create ordered tasks, assign priorities and durations, and adapt the plan when requirements change.</p>
+  </section>
+
+  <section class="card hidden" id="results">
+    <h2>📋 Your Action Plan</h2>
+    <p class="sub" id="goalTitle"></p>
+    <div class="stats">
+      <div class="stat"><p>Total Tasks</p><strong id="totalTasks">0</strong></div>
+      <div class="stat"><p>Estimated Effort</p><strong id="totalDuration">0h</strong></div>
+      <div class="stat"><p>Completed</p><strong id="completedTasks">0/0</strong></div>
+    </div>
+    <p style="font-size:13px;font-weight:bold">Overall Progress <span id="progressText">0%</span></p>
+    <div class="progress"><div id="progressBar"></div></div>
+    <div id="taskList"></div>
+    <p class="notice" id="nextStep"></p>
+  </section>
+
+  <section class="card hidden" id="revision">
+    <h2>🔄 Revise Your Plan</h2>
+    <p class="sub">Changed your requirements? Describe what needs to change and update your plan.</p>
+    <input id="change" placeholder="Example: Make the workshop one day and add a practical AI session">
+    <button onclick="revisePlan()">Update Plan</button>
+    <button class="secondary" onclick="document.getElementById('change').value='';">Clear</button>
+    <div id="revisionSummary" class="notice"></div>
+  </section>
+
+  <section class="card">
+    <h2>🧠 How the Agent Works</h2>
+    <p class="sub"><b>1. Understand:</b> Accepts a goal from the user.</p>
+    <p class="sub"><b>2. Plan:</b> Divides the goal into tasks with priorities and estimated durations.</p>
+    <p class="sub"><b>3. Execute tracking:</b> Allows tasks to be marked as completed and calculates progress.</p>
+    <p class="sub"><b>4. Adapt:</b> Revises the existing plan when the user changes a requirement.</p>
+    <p class="notice">This standalone version uses local rule-based demo logic. Connect an AI API to enable genuine AI-generated plans.</p>
+  </section>
+</main>
+
+<footer>TaskPilot AI · Automated Task Planning Agent · College Assignment</footer>
+
+<script>
+let tasks = [];
+let currentGoal = "";
+
+const systemPrompt = `
+You are an AI task planning agent.
+Convert user goals into actionable sequential tasks.
+Each task needs a title, description, priority and estimated duration.
+Priorities are High, Medium or Low.
+When requirements change, revise the existing plan and preserve
+relevant tasks. Estimate durations reasonably and state assumptions.
+`;
+
+function setGoal(value) {
+  document.getElementById("goal").value = value;
+  document.getElementById("goal").focus();
+}
+
+function createTask(title, description, priority, hours) {
+  return {
+    id: Date.now() + Math.random(),
+    title, description, priority, hours, done: false
+  };
+}
+
+function generateTasks(goal) {
+  const g = goal.toLowerCase();
+
+  if (g.includes("workshop")) {
+    return [
+      createTask("Define objectives and budget","Identify workshop outcomes, audience size and available budget.","High",2),
+      createTask("Select topics and speakers","Choose technical topics and contact suitable speakers.","High",4),
+      createTask("Book venue and equipment","Arrange the venue, computers, projector and internet.","High",3),
+      createTask("Open student registration","Create a registration form and announce the event.","Medium",4),
+      createTask("Prepare session materials","Prepare presentations, practical exercises and certificates.","High",6),
+      createTask("Conduct the workshop","Deliver sessions, coordinate activities and collect feedback.","High",16)
+    ];
+  }
+
+  if (g.includes("placement") || g.includes("aptitude")) {
+    return [
+      createTask("Assess current skills","Attempt a diagnostic test to identify weak areas.","High",2),
+      createTask("Prepare a study timetable","Divide available days between aptitude topics and revision.","High",2),
+      createTask("Practice quantitative aptitude","Study arithmetic, percentages, ratios and problem solving.","High",20),
+      createTask("Practice logical reasoning","Solve puzzles, series and analytical reasoning questions.","High",16),
+      createTask("Improve verbal ability","Practice grammar, vocabulary and reading comprehension.","Medium",12),
+      createTask("Attempt mock tests","Take timed tests and analyze incorrect answers.","High",18)
+    ];
+  }
+
+  if (g.includes("web application") || g.includes("website") || g.includes("software")) {
+    return [
+      createTask("Gather requirements","Define users, features and expected outcomes.","High",3),
+      createTask("Design UI and database","Prepare wireframes, navigation and database structure.","High",5),
+      createTask("Set up development environment","Configure the project and required dependencies.","High",2),
+      createTask("Develop core features","Implement frontend pages, APIs and application logic.","High",16),
+      createTask("Integrate and test","Test forms, APIs, validation and error handling.","High",6),
+      createTask("Deploy the application","Configure hosting and verify the deployed application.","Medium",3)
+    ];
+  }
+
+  return [
+    createTask("Define the goal","Clarify the desired outcome and success criteria.","High",2),
+    createTask("Gather requirements","Identify resources, constraints and information needed.","High",3),
+    createTask("Create a detailed schedule","Arrange activities in a practical sequence.","High",2),
+    createTask("Complete the main activities","Carry out the major tasks and track progress.","High",8),
+    createTask("Review and improve","Check results, resolve problems and make improvements.","Medium",3),
+    createTask("Finalize the outcome","Verify completion against the original goal.","Low",2)
+  ];
+}
+
+function generatePlan() {
+  const goal = document.getElementById("goal").value.trim();
+  if (!goal) {
+    alert("Please enter a goal before generating a plan.");
+    return;
+  }
+
+  currentGoal = goal;
+  tasks = generateTasks(goal);
+  document.getElementById("goalTitle").textContent = "Goal: " + currentGoal;
+  document.getElementById("results").classList.remove("hidden");
+  document.getElementById("revision").classList.remove("hidden");
+  document.getElementById("revisionSummary").textContent = "";
+  document.getElementById("nextStep").textContent =
+    "Suggested next step: Start with the first high-priority task.";
+  renderPlan();
+  document.getElementById("results").scrollIntoView({behavior:"smooth"});
+}
+
+function renderPlan() {
+  const list = document.getElementById("taskList");
+  list.innerHTML = "";
+
+  tasks.forEach((task, index) => {
+    const item = document.createElement("div");
+    item.className = "task" + (task.done ? " done" : "");
+
+    const top = document.createElement("div");
+    top.className = "task-top";
+
+    const details = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = (index + 1) + ". " + task.title;
+
+    const description = document.createElement("p");
+    description.textContent = task.description;
+
+    details.append(title, description);
+
+    const priority = document.createElement("span");
+    priority.className = "priority " + task.priority;
+    priority.textContent = task.priority;
+
+    top.append(details, priority);
+
+    const actions = document.createElement("div");
+    actions.className = "task-actions";
+
+    const label = document.createElement("label");
+    label.style.fontSize = "13px";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = task.done;
+    checkbox.addEventListener("change", () => {
+      task.done = checkbox.checked;
+      renderPlan();
+    });
+
+    label.append(checkbox, document.createTextNode("Completed"));
+
+    const duration = document.createElement("span");
+    duration.className = "duration";
+    duration.textContent = "⏱ " + task.hours + " hour(s)";
+
+    actions.append(label, duration);
+    item.append(top, actions);
+    list.appendChild(item);
+  });
+
+  const total = tasks.reduce((sum, task) => sum + task.hours, 0);
+  const completed = tasks.filter(task => task.done).length;
+  const percentage = tasks.length ? Math.round(completed / tasks.length * 100) : 0;
+
+  document.getElementById("totalTasks").textContent = tasks.length;
+  document.getElementById("totalDuration").textContent =
+    total >= 24 ? Math.floor(total / 24) + "d " + total % 24 + "h" : total + "h";
+  document.getElementById("completedTasks").textContent = completed + "/" + tasks.length;
+  document.getElementById("progressText").textContent = percentage + "%";
+  document.getElementById("progressBar").style.width = percentage + "%";
+}
+
+function revisePlan() {
+  const change = document.getElementById("change").value.trim();
+
+  if (!change) {
+    alert("Please describe the requirement you want to change.");
+    return;
+  }
+
+  const c = change.toLowerCase();
+  const summary = [];
+
+  if (c.includes("one day") || c.includes("1 day") || c.includes("half day")) {
+    const targetHours = c.includes("half day") ? 4 : 8;
+    tasks = tasks.filter(t =>
+      !/conduct the workshop/i.test(t.title)
+    );
+
+    if (c.includes("workshop")) {
+      tasks = tasks.filter(t =>
+        !/prepare session materials/i.test(t.title)
+      );
+      tasks.push(createTask(
+        "Conduct the revised workshop",
+        "Deliver a condensed workshop within the revised schedule.",
+        "High", targetHours
+      ));
+      summary.push("Updated workshop duration to " + targetHours + " hours.");
+    } else {
+      tasks.push(createTask(
+        "Complete the revised schedule",
+        "Prioritize essential activities to meet the new deadline.",
+        "High", targetHours
+      ));
+      summary.push("Added a task for the revised schedule.");
+    }
+  }
+
+  if (c.includes("ai session") || c.includes("artificial intelligence") ||
+      c.includes("include ai") || c.includes("practical ai")) {
+    tasks.push(createTask(
+      "Conduct a practical AI session",
+      "Introduce AI concepts and complete a hands-on activity.",
+      "High", 3
+    ));
+    summary.push("Added a practical AI session.");
+  }
+
+  if (c.includes("reduce") || c.includes("shorter") || c.includes("less time")) {
+    tasks.forEach(t => {
+      if (!t.done) t.hours = Math.max(1, Math.ceil(t.hours * 0.7));
+    });
+    summary.push("Reduced estimated time for incomplete tasks.");
+  }
+
+  if (c.includes("add testing") || c.includes("test the project")) {
+    tasks.push(createTask(
+      "Test the final outcome",
+      "Check functionality, identify errors and verify requirements.",
+      "High", 3
+    ));
+    summary.push("Added a testing task.");
+  }
+
+  if (c.includes("add documentation") || c.includes("documentation")) {
+    tasks.push(createTask(
+      "Prepare documentation",
+      "Document requirements, process and final results.",
+      "Medium", 2
+    ));
+    summary.push("Added a documentation task.");
+  }
+
+  if (c.includes("remove") || c.includes("cancel")) {
+    const before = tasks.length;
+    tasks = tasks.filter(t => {
+      const title = t.title.toLowerCase();
+      if (c.includes("registration") && title.includes("registration")) return false;
+      if (c.includes("speaker") && title.includes("speaker")) return false;
+      if (c.includes("mock test") && title.includes("mock test")) return false;
+      if (c.includes("publicity") && title.includes("publicity")) return false;
+      return true;
+    });
+    if (before !== tasks.length) summary.push("Removed matching tasks.");
+  }
+
+  if (summary.length === 0) {
+    summary.push(
+      "Requirement recorded. Existing tasks were preserved; review the plan and adjust task estimates as needed."
+    );
+  }
+
+  document.getElementById("goalTitle").textContent =
+    "Goal: " + currentGoal + " | Revision: " + change;
+
+  document.getElementById("revisionSummary").textContent =
+    "Plan updated: " + summary.join(" ");
+
+  renderPlan();
+  document.getElementById("results").scrollIntoView({behavior:"smooth"});
+}
+</script>
+</body>
+</html>
